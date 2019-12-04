@@ -16,6 +16,7 @@
 
 package org.gradle.jvm.toolchain;
 
+import org.gradle.api.Incubating;
 import org.gradle.api.provider.Provider;
 
 import java.io.File;
@@ -27,6 +28,7 @@ import java.io.File;
  *
  * @since 6.1
  */
+@Incubating
 public interface JavaInstallationRegistry {
     /**
      * Returns the Java installation for the current virtual machine.

@@ -16,8 +16,13 @@
 
 package org.gradle.jvm.toolchain;
 
+import org.gradle.api.Incubating;
+
 /**
- * A Java development kit.
+ * Information about a Java development kit.
+ *
+ * @since 6.1
  */
+@Incubating
 public interface JavaDevelopmentKit {
 }

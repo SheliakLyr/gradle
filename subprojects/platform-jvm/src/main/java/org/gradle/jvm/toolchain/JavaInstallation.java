@@ -23,7 +23,7 @@ import java.io.File;
 import java.util.Optional;
 
 /**
- * Represents a Java installation, which may include a JRE or a JDK or both.
+ * Information about a Java installation, which may include a JRE or a JDK or both.
  *
  * @since 6.1
  */
