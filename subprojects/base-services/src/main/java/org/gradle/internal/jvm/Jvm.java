@@ -16,6 +16,7 @@
 
 package org.gradle.internal.jvm;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.gradle.api.JavaVersion;
 import org.gradle.internal.FileUtils;
 import org.gradle.internal.SystemProperties;
@@ -39,6 +40,7 @@ public class Jvm implements JavaInfo {
     //discovered java location
     private final File javaHome;
     private final boolean userSupplied;
+    private final String implementationJavaVersion;
     private final JavaVersion javaVersion;
     private static final AtomicReference<JvmImplementation> CURRENT = new AtomicReference<JvmImplementation>();
 
@@ -52,13 +54,14 @@ public class Jvm implements JavaInfo {
     public static Jvm current() {
         Jvm jvm = CURRENT.get();
         if (jvm == null) {
-            CURRENT.compareAndSet(null, create());
+            CURRENT.compareAndSet(null, createCurrent());
             jvm = CURRENT.get();
         }
         return jvm;
     }
 
-    private static JvmImplementation create() {
+    @VisibleForTesting
+    static JvmImplementation createCurrent() {
         String vendor = System.getProperty("java.vm.vendor");
         if (vendor.toLowerCase().startsWith("apple inc.")) {
             return new AppleJvm(OperatingSystem.current());
@@ -69,8 +72,8 @@ public class Jvm implements JavaInfo {
         return new JvmImplementation(OperatingSystem.current());
     }
 
-    static Jvm create(File javaBase, @Nullable JavaVersion javaVersion) {
-        Jvm jvm = new Jvm(OperatingSystem.current(), javaBase, javaVersion);
+    private static Jvm create(File javaBase, @Nullable String implementationJavaVersion, @Nullable JavaVersion javaVersion) {
+        Jvm jvm = new Jvm(OperatingSystem.current(), javaBase, implementationJavaVersion, javaVersion);
         Jvm current = current();
         return jvm.getJavaHome().equals(current.getJavaHome()) ? current : jvm;
     }
@@ -79,22 +82,23 @@ public class Jvm implements JavaInfo {
      * Constructs JVM details by inspecting the current JVM.
      */
     Jvm(OperatingSystem os) {
-        this(os, FileUtils.canonicalize(new File(System.getProperty("java.home"))), JavaVersion.current(), false);
+        this(os, FileUtils.canonicalize(new File(System.getProperty("java.home"))), System.getProperty("java.version"), JavaVersion.current(), false);
     }
 
     /**
      * Constructs JVM details from the given values
      */
-    Jvm(OperatingSystem os, File suppliedJavaBase, JavaVersion javaVersion) {
-        this(os, suppliedJavaBase, javaVersion, true);
+    Jvm(OperatingSystem os, File suppliedJavaBase, String implementationJavaVersion, JavaVersion javaVersion) {
+        this(os, suppliedJavaBase, implementationJavaVersion, javaVersion, true);
     }
 
-    private Jvm(OperatingSystem os, File suppliedJavaBase, JavaVersion javaVersion, boolean userSupplied) {
+    private Jvm(OperatingSystem os, File suppliedJavaBase, String implementationJavaVersion, JavaVersion javaVersion, boolean userSupplied) {
         this.os = os;
         this.javaBase = suppliedJavaBase;
-        this.javaHome = findJavaHome(suppliedJavaBase);
+        this.implementationJavaVersion = implementationJavaVersion;
         this.javaVersion = javaVersion;
         this.userSupplied = userSupplied;
+        this.javaHome = findJavaHome(suppliedJavaBase);
     }
 
     /**
@@ -110,7 +114,7 @@ public class Jvm implements JavaInfo {
         if (javaHome == null || !javaHome.isDirectory()) {
             throw new IllegalArgumentException("Supplied javaHome must be a valid directory. You supplied: " + javaHome);
         }
-        Jvm jvm = create(javaHome, null);
+        Jvm jvm = create(javaHome, null, null);
         //some validation:
         jvm.getJavaExecutable();
         return jvm;
@@ -119,8 +123,8 @@ public class Jvm implements JavaInfo {
     /**
      * Creates JVM instance for given values. This method is intended to be used for discovered java homes.
      */
-    public static Jvm discovered(File javaHome, JavaVersion javaVersion) {
-        return create(javaHome, javaVersion);
+    public static Jvm discovered(File javaHome, String implementationJavaVersion, JavaVersion javaVersion) {
+        return create(javaHome, implementationJavaVersion, javaVersion);
     }
 
     @Override
@@ -157,17 +161,21 @@ public class Jvm implements JavaInfo {
 
     @Nullable
     private File findExecutableInJavaHome(String command) {
-        File exec = new File(getJavaHome(), "bin/" + command);
-        File executable = new File(os.getExecutableName(exec.getAbsolutePath()));
+        File executable = commandLocation(command);
         if (executable.isFile()) {
             return executable;
         }
         return null;
     }
 
+    private File commandLocation(String command) {
+        File exec = new File(getJavaHome(), "bin/" + command);
+        return new File(os.getExecutableName(exec.getAbsolutePath()));
+    }
+
     private File findExecutable(String command) {
-        File executable = findExecutableInJavaHome(command);
-        if (executable != null) {
+        File executable = commandLocation(command);
+        if (executable.isFile()) {
             return executable;
         }
 
@@ -268,7 +276,7 @@ public class Jvm implements JavaInfo {
         if (toolsJar != null) {
             return toolsJar;
         }
-        toolsJar = findToolsJar(javaBase);
+        toolsJar = findToolsJar(javaHome);
         return toolsJar;
     }
 
@@ -283,7 +291,7 @@ public class Jvm implements JavaInfo {
         if (os.isWindows()) {
             File jreDir;
             if (javaVersion.isJava5()) {
-                jreDir = new File(javaHome.getParentFile(), "jre" + SystemProperties.getInstance().getJavaVersion());
+                jreDir = new File(javaHome.getParentFile(), "jre" + implementationJavaVersion);
             } else {
                 jreDir = new File(javaHome.getParentFile(), "jre" + javaVersion.getMajorVersion());
             }
@@ -299,7 +307,7 @@ public class Jvm implements JavaInfo {
      */
     @Nullable
     public Jre getEmbeddedJre() {
-        File jreDir = new File(javaBase, "jre");
+        File jreDir = new File(javaHome, "jre");
         if (jreDir.isDirectory()) {
             return new DefaultJre(jreDir);
         }
@@ -333,7 +341,7 @@ public class Jvm implements JavaInfo {
         }
 
         if (os.isWindows()) {
-            String version = SystemProperties.getInstance().getJavaVersion();
+            String version = implementationJavaVersion;
             if (javaHome.getName().matches("jre\\d+") || javaHome.getName().equals("jre" + version)) {
                 javaHome = new File(javaHome.getParentFile(), "jdk" + version);
                 toolsJar = new File(javaHome, "lib/tools.jar");

@@ -68,7 +68,7 @@ public class DefaultJavaInstallationRegistry implements JavaInstallationRegistry
         private final Jvm jvm;
 
         public DefaultJavaInstallation(JavaInstallationProbe.ProbeResult probeResult) {
-            this.jvm = Jvm.discovered(probeResult.getJavaHome(), probeResult.getJavaVersion());
+            this.jvm = Jvm.discovered(probeResult.getJavaHome(), probeResult.getImplementationJavaVersion(), probeResult.getJavaVersion());
         }
 
         @Override

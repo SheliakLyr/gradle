@@ -99,13 +99,17 @@ public class JavaInstallationProbe {
             return new File(metadata.get(SysProp.JAVA_HOME));
         }
 
+        public String getImplementationJavaVersion() {
+            assertOk();
+            return metadata.get(SysProp.VERSION);
+        }
+
         public JavaVersion getJavaVersion() {
             assertOk();
             return JavaVersion.toVersion(metadata.get(SysProp.VERSION));
         }
 
         public InstallType getInstallType() {
-            assertOk();
             return installType;
         }
 
@@ -115,7 +119,6 @@ public class JavaInstallationProbe {
 
         public void configure(LocalJavaInstallation install) {
             assertOk();
-            install.setJavaHome(getJavaHome());
             install.setJavaVersion(getJavaVersion());
             String jdkName = computeJdkName(installType, metadata);
             install.setDisplayName(jdkName + " " + getJavaVersion().getMajorVersion());
