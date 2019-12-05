@@ -104,7 +104,7 @@ class JavaInstallationFactoryIntegrationTest extends AbstractIntegrationSpec {
         version << [JavaVersion.VERSION_1_5, JavaVersion.VERSION_1_6, JavaVersion.VERSION_1_7]
     }
 
-    def "plugin can query information about a standalone JRE install"() {
+    def "plugin can query information about a standalone JRE install alongside a JDK"() {
         def jvm = AvailableJavaHomes.availableJvms.find { it.standaloneJre != null }
         Assume.assumeTrue(jvm != null)
         def jre = jvm.standaloneJre
@@ -120,10 +120,10 @@ class JavaInstallationFactoryIntegrationTest extends AbstractIntegrationSpec {
         run("show")
 
         then:
-        outputContains("install dir = ${jre.homeDir}")
+        outputContains("install dir = ${jvm.homeDir}")
         outputContains("java version = ${jvm.javaVersion}")
-        outputContains("java executable = ${jre.javaExecutable}")
-        outputContains("JDK? = false")
+        outputContains("java executable = ${jvm.javaExecutable}")
+        outputContains("JDK? = true")
     }
 
     def "plugin can query information about an JRE install contained within a JDK install"() {

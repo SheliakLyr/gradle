@@ -316,8 +316,8 @@ class JvmTest extends Specification {
         }
 
         expect:
-        def jvm = Jvm.forHome(installDir)
-        def jvm2 = Jvm.forHome(installDir)
+        def jvm = new Jvm(os, installDir, "1.8.0", JavaVersion.VERSION_1_8)
+        def jvm2 = new Jvm(os, installDir, "1.8.0", JavaVersion.VERSION_1_8)
         Matchers.strictlyEquals(jvm, jvm2)
     }
 
@@ -479,7 +479,7 @@ class JvmTest extends Specification {
         }
 
         when:
-        def jvm = Jvm.forHome(jdkDir)
+        def jvm = new Jvm(os, jdkDir, "1.8.0", JavaVersion.VERSION_1_8)
 
         then:
         jvm.toString().contains('dummyFolder')
