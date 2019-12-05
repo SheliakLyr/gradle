@@ -30,6 +30,11 @@ class ModelRuleCachingIntegrationTest extends PersistentBuildProcessIntegrationT
         """
     }
 
+    private void expectDeprecationWarnings() {
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     boolean getNewRulesExtracted() {
         def match = output =~ /.*### extracted new rules: (true|false).*/
         match[0][1] == "true"
@@ -43,12 +48,14 @@ class ModelRuleCachingIntegrationTest extends PersistentBuildProcessIntegrationT
         '''
 
         when:
+        expectDeprecationWarnings()
         run()
 
         then:
         newRulesExtracted
 
         when:
+        expectDeprecationWarnings()
         run()
 
         then:

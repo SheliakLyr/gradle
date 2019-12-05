@@ -21,6 +21,13 @@ import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 import org.gradle.test.fixtures.archive.JarTestFixture
 
 class CustomComponentJarBinariesIntegrationTest extends AbstractIntegrationSpec {
+
+    def setup() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     @ToBeFixedForInstantExecution
     def "custom component defined by plugin is built from Java source using JVM component plugin" () {
         given:

@@ -19,6 +19,12 @@ package org.gradle.language.scala.plugins
 import org.gradle.integtests.fixtures.WellBehavedPluginTest
 
 class ScalaLanguagePluginGoodBehaviourTest extends WellBehavedPluginTest {
+
+    def setup() {
+        executer.expectDeprecationWarning("The scala-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the scala plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     @Override
     String getPluginName() {
         "scala-lang"

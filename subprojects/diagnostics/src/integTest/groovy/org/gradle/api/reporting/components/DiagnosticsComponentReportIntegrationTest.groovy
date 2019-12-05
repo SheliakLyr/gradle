@@ -20,6 +20,12 @@ import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
 
 class DiagnosticsComponentReportIntegrationTest extends AbstractNativeComponentReportIntegrationTest {
 
+    private void expectJavaLanguagePluginDeprecationWarnings() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     @RequiresInstalledToolChain
     def "informs the user when project has no components defined"() {
         when:
@@ -33,6 +39,8 @@ No components defined for this project.
 
     @RequiresInstalledToolChain
     def "shows details of multiple components"() {
+        expectJavaLanguagePluginDeprecationWarnings()
+
         given:
         buildFile << """
 plugins {
@@ -106,6 +114,8 @@ Binaries
     }
 
     def "shows an error when targeting a native platform from a jvm component"() {
+        expectJavaLanguagePluginDeprecationWarnings()
+
         given:
         buildFile << """
     apply plugin: 'jvm-component'
@@ -131,6 +141,8 @@ Binaries
     }
 
     def "shows an error when targeting a jvm platform from a native component"() {
+        expectJavaLanguagePluginDeprecationWarnings()
+
         given:
         buildFile << """
     apply plugin: 'jvm-component'

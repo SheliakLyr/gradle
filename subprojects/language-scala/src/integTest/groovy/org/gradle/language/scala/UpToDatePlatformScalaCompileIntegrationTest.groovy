@@ -32,6 +32,12 @@ class UpToDatePlatformScalaCompileIntegrationTest extends AbstractIntegrationSpe
         file('app/controller/Person.scala') << "class Person(name: String)"
     }
 
+    def expectDeprecationWarnings() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The scala-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the scala plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     @Requires(adhoc = { AvailableJavaHomes.getJdk(VERSION_1_8) && AvailableJavaHomes.getJdk(VERSION_1_9) })
     @ToBeFixedForInstantExecution
     def "compile is out of date when changing the java version"() {
@@ -42,6 +48,7 @@ class UpToDatePlatformScalaCompileIntegrationTest extends AbstractIntegrationSpe
         scalaFixture.baseline()
         buildFile << scalaFixture.buildScript()
         when:
+        expectDeprecationWarnings()
         executer.withJavaHome(jdk8.javaHome)
         run 'compileMainJarMainScala'
 
@@ -49,12 +56,14 @@ class UpToDatePlatformScalaCompileIntegrationTest extends AbstractIntegrationSpe
         executedAndNotSkipped(':compileMainJarMainScala')
 
         when:
+        expectDeprecationWarnings()
         executer.withJavaHome(jdk8.javaHome)
         run 'compileMainJarMainScala'
         then:
         skipped ':compileMainJarMainScala'
 
         when:
+        expectDeprecationWarnings()
         executer.withJavaHome(jdk9.javaHome)
         run 'compileMainJarMainScala'
         then:

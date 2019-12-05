@@ -20,6 +20,17 @@ import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 
 class AbstractJUnitTestExecutionIntegrationSpec extends AbstractIntegrationSpec {
 
+    def setup() {
+        expectDeprecationWarnings()
+    }
+
+    def expectDeprecationWarnings() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The junit-test-suite plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     protected void applyJUnitPlugin(boolean declareRepo = true) {
         buildFile << '''
             plugins {

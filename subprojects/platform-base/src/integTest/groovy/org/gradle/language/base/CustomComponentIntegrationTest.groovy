@@ -235,6 +235,7 @@ class CustomComponentIntegrationTest extends AbstractIntegrationSpec {
     }
 
     def "can declare custom managed Jvm library component"() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
         buildFile << """
             apply plugin: "jvm-component"
 

@@ -40,6 +40,12 @@ class ScalaCompileParallelIntegrationTest extends AbstractIntegrationSpec {
         blockingServer.start()
     }
 
+    def expectDeprecationWarnings() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The scala-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the scala plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
+
     def "multi-project build is multi-process safe"() {
         given:
         def projects = (1..MAX_PARALLEL_COMPILERS)
@@ -60,6 +66,7 @@ class ScalaCompileParallelIntegrationTest extends AbstractIntegrationSpec {
         expectTasksWithParallelExecuter()
 
         when:
+        expectDeprecationWarnings()
         succeeds("build")
 
         then:
@@ -68,6 +75,7 @@ class ScalaCompileParallelIntegrationTest extends AbstractIntegrationSpec {
         // Check that we can successfully use an existing compiler-interface.jar as well
         when:
         expectTasksWithParallelExecuter()
+        expectDeprecationWarnings()
         succeeds("clean", "build")
 
         then:
@@ -92,6 +100,7 @@ class ScalaCompileParallelIntegrationTest extends AbstractIntegrationSpec {
         expectTasksWithParallelExecuter()
 
         when:
+        expectDeprecationWarnings()
         succeeds("build")
 
         then:
@@ -131,6 +140,7 @@ class ScalaCompileParallelIntegrationTest extends AbstractIntegrationSpec {
         expectTasksWithParallelExecuter()
 
         when:
+        expectDeprecationWarnings()
         succeeds("buildAll")
 
         then:

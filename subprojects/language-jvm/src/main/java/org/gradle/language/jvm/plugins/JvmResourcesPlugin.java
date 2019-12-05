@@ -36,6 +36,7 @@ import org.gradle.model.RuleSource;
 import org.gradle.platform.base.BinarySpec;
 import org.gradle.platform.base.ComponentType;
 import org.gradle.platform.base.TypeBuilder;
+import org.gradle.util.SingleMessageLogger;
 
 import java.util.Collections;
 import java.util.Map;
@@ -51,6 +52,7 @@ public class JvmResourcesPlugin implements Plugin<Project> {
 
     @Override
     public void apply(final Project project) {
+        SingleMessageLogger.nagUserOfReplacedPlugin("jvm-resources", "java-library");
         project.getPluginManager().apply(ComponentModelBasePlugin.class);
     }
 

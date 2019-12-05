@@ -430,6 +430,8 @@ idea.project {
     @Test
     @ToBeFixedForInstantExecution
     void "does not explode if only ScalaLanguagePlugin is applied"() {
+        executer.expectDeprecationWarning("The scala-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the scala plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
         runTask("idea", """
 apply plugin: 'idea'
 apply plugin: 'org.gradle.scala-lang'

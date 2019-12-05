@@ -18,4 +18,8 @@ package org.gradle.jvm.plugins
 import org.gradle.integtests.fixtures.WellBehavedPluginTest
 
 class JvmComponentPluginGoodBehaviourTest extends WellBehavedPluginTest {
+
+    def setup() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+    }
 }

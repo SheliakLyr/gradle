@@ -29,6 +29,9 @@ class JavaComponentCompilerDaemonReuseIntegrationTest extends AbstractComponentC
 
     @Override
     String getApplyAndConfigure() {
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
         return """
             apply plugin: 'jvm-component'
             apply plugin: 'java-lang'

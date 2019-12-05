@@ -76,6 +76,7 @@ import org.gradle.platform.base.internal.DefaultPlatformRequirement;
 import org.gradle.platform.base.internal.PlatformRequirement;
 import org.gradle.platform.base.internal.PlatformResolvers;
 import org.gradle.util.CollectionUtils;
+import org.gradle.util.SingleMessageLogger;
 
 import java.io.File;
 import java.io.IOException;
@@ -96,6 +97,7 @@ public class JvmComponentPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        SingleMessageLogger.nagUserOfReplacedPlugin("jvm-component", "java-library");
     }
 
     @SuppressWarnings("UnusedDeclaration")

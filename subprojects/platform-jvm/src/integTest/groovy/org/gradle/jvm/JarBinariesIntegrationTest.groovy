@@ -29,6 +29,7 @@ class JarBinariesIntegrationTest extends AbstractIntegrationSpec {
                 id 'jvm-component'
             }
         """
+        executer.expectDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
     }
 
     @Requires(TestPrecondition.JDK8_OR_EARLIER)
@@ -89,6 +90,9 @@ class JarBinariesIntegrationTest extends AbstractIntegrationSpec {
     }
 
     def "model report should display configured components and binaries"() {
+        executer.expectDeprecationWarning("The java-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+        executer.expectDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. Please use the java-library plugin instead.")
+
         given:
         buildFile << """
             plugins {
