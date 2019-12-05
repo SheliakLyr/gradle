@@ -126,7 +126,7 @@ class JavaInstallationFactoryIntegrationTest extends AbstractIntegrationSpec {
         run("show")
 
         then:
-        outputContains("install dir = ${jvm.homeDir}")
+        outputContains("install dir = ${jvm.javaHome}")
         outputContains("java version = ${jvm.javaVersion}")
         outputContains("java executable = ${jvm.javaExecutable}")
         outputContains("JDK? = true")
@@ -227,6 +227,7 @@ class JavaInstallationFactoryIntegrationTest extends AbstractIntegrationSpec {
                     if (javaInstallation.jdk.present) {
                         println("javac executable = \${javaInstallation.jdk.get().javacExecutable}")
                         println("javadoc executable = \${javaInstallation.jdk.get().javadocExecutable}")
+                        println("tools classpath = \${javaInstallation.jdk.get().toolsClasspath.files}")
                     }
                 }
             }
