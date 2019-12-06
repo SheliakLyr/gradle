@@ -24,11 +24,13 @@ import org.gradle.util.GradleVersion
 import java.io.StringReader
 import java.util.Properties
 
+
 interface BuildBucketProvider {
     fun configureTest(testTask: Test, sourceSet: SourceSet, testType: TestType)
 
     companion object {
-        private var instance: BuildBucketProvider? = null
+        private
+        var instance: BuildBucketProvider? = null
 
         fun getInstance(project: Project): BuildBucketProvider {
             if (instance == null) {
@@ -57,7 +59,8 @@ interface BuildBucketProvider {
             return instance!!
         }
 
-        private fun readTestClasses(content: String): Map<String, List<String>> {
+        private
+        fun readTestClasses(content: String): Map<String, List<String>> {
             val properties = Properties()
             val ret = mutableMapOf<String, MutableList<String>>()
             properties.load(StringReader(content))
@@ -68,6 +71,7 @@ interface BuildBucketProvider {
         }
     }
 }
+
 
 class CrossVersionBucketProvider(private val onlyTestGradleMajorVersion: String) : BuildBucketProvider {
     override fun configureTest(testTask: Test, sourceSet: SourceSet, testType: TestType) {
@@ -89,6 +93,7 @@ class CrossVersionBucketProvider(private val onlyTestGradleMajorVersion: String)
     fun extractTestTaskGradleVersion(name: String): String? = "gradle([\\d.]+)CrossVersionTest".toRegex().find(name)?.groupValues?.get(1)
 }
 
+
 class IncludeTestClassProvider(private val includeTestClasses: Map<String, List<String>>) : BuildBucketProvider {
     override fun configureTest(testTask: Test, sourceSet: SourceSet, testType: TestType) {
         if (testTask.name == "integMultiVersionTest") {
@@ -100,6 +105,7 @@ class IncludeTestClassProvider(private val includeTestClasses: Map<String, List<
     }
 }
 
+
 class ExcludeTestClassProvider(private val excludeTestClasses: Map<String, List<String>>) : BuildBucketProvider {
     override fun configureTest(testTask: Test, sourceSet: SourceSet, testType: TestType) {
         if (testTask.name != "integMultiVersionTest") {
@@ -107,6 +113,7 @@ class ExcludeTestClassProvider(private val excludeTestClasses: Map<String, List<
         }
     }
 }
+
 
 class NoOpTestClassProvider : BuildBucketProvider {
     override fun configureTest(testTask: Test, sourceSet: SourceSet, testType: TestType) {
