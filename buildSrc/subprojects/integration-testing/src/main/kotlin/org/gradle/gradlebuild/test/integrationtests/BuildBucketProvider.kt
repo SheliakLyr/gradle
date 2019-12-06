@@ -43,7 +43,7 @@ interface BuildBucketProvider {
                         IncludeTestClassProvider(readTestClasses(content))
                     }
                     excludeProperties.isFile -> {
-                        val content = includeProperties.readText()
+                        val content = excludeProperties.readText()
                         println("Tests to be excluded:\n$content")
                         ExcludeTestClassProvider(readTestClasses(content))
                     }
