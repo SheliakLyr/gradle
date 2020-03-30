@@ -16,12 +16,17 @@
 
 package org.gradle.api.internal.tasks.scala;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.cache.CacheRepository;
 import org.gradle.cache.FileLockManager;
 import org.gradle.cache.PersistentCache;
+import org.gradle.internal.classpath.ClassPath;
+import org.gradle.internal.classpath.DefaultClassPath;
+import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.time.Time;
 import org.gradle.internal.time.Timer;
@@ -44,14 +49,21 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 
 import static org.gradle.cache.internal.filelock.LockOptionsBuilder.mode;
 
 public class ZincScalaCompilerFactory {
     private static final Logger LOGGER = Logging.getLogger(ZincScalaCompilerFactory.class);
+    private static final int CLASSLOADER_CACHE_SIZE = 5;
+    private static final Cache<HashCode, ClassLoader> CLASSLOADER_CACHE = CacheBuilder.newBuilder()
+            .weakValues()
+            .maximumSize(CLASSLOADER_CACHE_SIZE)
+            .build();
 
-    static ZincScalaCompiler getCompiler(CacheRepository cacheRepository, final Iterable<File> scalaClasspath) {
-        ScalaInstance scalaInstance = getScalaInstance(scalaClasspath);
+    static ZincScalaCompiler getCompiler(CacheRepository cacheRepository, HashedClasspath hashedScalaClasspath) {
+        ScalaInstance scalaInstance = getScalaInstance(hashedScalaClasspath);
         String zincVersion = ZincCompilerUtil.class.getPackage().getImplementationVersion();
         String scalaVersion = scalaInstance.actualVersion();
         String javaVersion = Jvm.current().getJavaVersion().getMajorVersion();
@@ -62,28 +74,42 @@ public class ZincScalaCompilerFactory {
                 .withLockOptions(mode(FileLockManager.LockMode.OnDemand))
                 .open();
 
-        File compilerBridgeSourceJar = findFile("compiler-bridge", scalaClasspath);
+        File compilerBridgeSourceJar = findFile("compiler-bridge", hashedScalaClasspath.getClasspath());
         File bridgeJar = getBridgeJar(zincCache, scalaInstance, compilerBridgeSourceJar, sbt.util.Logger.xlog2Log(new SbtLoggerAdapter()));
         ScalaCompiler scalaCompiler = ZincCompilerUtil.scalaCompiler(scalaInstance, bridgeJar, ClasspathOptionsUtil.auto());
 
         return new ZincScalaCompiler(scalaInstance, scalaCompiler, new AnalysisStoreProvider());
     }
 
-    private static ClassLoader getClassLoader(final Iterable<File> classpath) {
+    private static ClassLoader getClassLoader(ClassPath classpath) {
         try {
             List<URL> urls = new ArrayList<URL>();
-            for (File file : classpath) {
+            for (File file : classpath.getAsFiles()) {
                 urls.add(file.toURI().toURL());
             }
             return new URLClassLoader(urls.toArray(new URL[0]));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (Exception ee) {
+            throw new RuntimeException(ee);
         }
     }
 
-    private static ScalaInstance getScalaInstance(final Iterable<File> scalaClasspath) {
-        ClassLoader scalaClassLoader = getClassLoader(scalaClasspath);
+    private static ClassLoader getCachedClassLoader(HashedClasspath classpath) {
+        try {
+            return CLASSLOADER_CACHE.get(classpath.getHash(), new Callable<ClassLoader>() {
+                @Override
+                public ClassLoader call() throws Exception {
+                    return getClassLoader(classpath.getClasspath());
+                }
+            });
+        } catch (ExecutionException ee) {
+            throw new RuntimeException(ee);
+        }
+    }
+
+    private static ScalaInstance getScalaInstance(HashedClasspath hashedScalaClasspath) {
+        ClassLoader scalaClassLoader = getCachedClassLoader(hashedScalaClasspath);
         String scalaVersion = getScalaVersion(scalaClassLoader);
+        ClassPath scalaClasspath = hashedScalaClasspath.getClasspath();
 
         File libraryJar = findFile(ArtifactInfo.ScalaLibraryID, scalaClasspath);
         File compilerJar = findFile(ArtifactInfo.ScalaCompilerID, scalaClasspath);
@@ -91,10 +117,10 @@ public class ZincScalaCompilerFactory {
         return new ScalaInstance(
                 scalaVersion,
                 scalaClassLoader,
-                getClassLoader(Arrays.asList(libraryJar)),
+                getClassLoader(DefaultClassPath.of(libraryJar)),
                 libraryJar,
                 compilerJar,
-                Iterables.toArray(scalaClasspath, File.class),
+                Iterables.toArray(scalaClasspath.getAsFiles(), File.class),
                 Option.empty()
         );
     }
@@ -125,13 +151,13 @@ public class ZincScalaCompilerFactory {
         });
     }
 
-    private static File findFile(String prefix, Iterable<File> files) {
-        for (File f: files) {
+    private static File findFile(String prefix, ClassPath classpath) {
+        for (File f : classpath.getAsFiles()) {
             if (f.getName().startsWith(prefix)) {
                 return f;
             }
         }
-        throw new IllegalStateException(String.format("Cannot find any files starting with %s in %s", prefix, files));
+        throw new IllegalStateException(String.format("Cannot find any files starting with %s in %s", prefix, classpath.getAsFiles()));
     }
 
     private static String getScalaVersion(ClassLoader scalaClassLoader) {
