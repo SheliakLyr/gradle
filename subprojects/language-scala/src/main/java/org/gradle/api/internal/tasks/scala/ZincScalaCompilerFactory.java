@@ -17,11 +17,15 @@
 package org.gradle.api.internal.tasks.scala;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.cache.CacheRepository;
 import org.gradle.cache.FileLockManager;
 import org.gradle.cache.PersistentCache;
+import org.gradle.cache.internal.Cache;
+import org.gradle.cache.internal.MapBackedCache;
+import org.gradle.internal.Factory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.time.Time;
 import org.gradle.internal.time.Timer;
@@ -35,6 +39,7 @@ import xsbti.compile.ClasspathOptionsUtil;
 import xsbti.compile.ScalaCompiler;
 import xsbti.compile.ZincCompilerUtil;
 
+import javax.annotation.Nullable;
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -44,29 +49,38 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.gradle.cache.internal.filelock.LockOptionsBuilder.mode;
 
 public class ZincScalaCompilerFactory {
     private static final Logger LOGGER = Logging.getLogger(ZincScalaCompilerFactory.class);
+    private static final Cache<Set<File>, ZincScalaCompiler> COMPILER_CACHE = new MapBackedCache<>(new ConcurrentHashMap<>());
 
     static ZincScalaCompiler getCompiler(CacheRepository cacheRepository, final Iterable<File> scalaClasspath) {
-        ScalaInstance scalaInstance = getScalaInstance(scalaClasspath);
-        String zincVersion = ZincCompilerUtil.class.getPackage().getImplementationVersion();
-        String scalaVersion = scalaInstance.actualVersion();
-        String javaVersion = Jvm.current().getJavaVersion().getMajorVersion();
-        String zincCacheKey = String.format("zinc-%s_%s_%s", zincVersion, scalaVersion, javaVersion);
-        String zincCacheName = String.format("%s compiler cache", zincCacheKey);
-        final PersistentCache zincCache = cacheRepository.cache(zincCacheKey)
-                .withDisplayName(zincCacheName)
-                .withLockOptions(mode(FileLockManager.LockMode.OnDemand))
-                .open();
+        return COMPILER_CACHE.get(Sets.newHashSet(Iterables.concat(scalaClasspath)), new Factory<ZincScalaCompiler>() {
+            @Nullable
+            @Override
+            public ZincScalaCompiler create() {
+                ScalaInstance scalaInstance = getScalaInstance(scalaClasspath);
+                String zincVersion = ZincCompilerUtil.class.getPackage().getImplementationVersion();
+                String scalaVersion = scalaInstance.actualVersion();
+                String javaVersion = Jvm.current().getJavaVersion().getMajorVersion();
+                String zincCacheKey = String.format("zinc-%s_%s_%s", zincVersion, scalaVersion, javaVersion);
+                String zincCacheName = String.format("%s compiler cache", zincCacheKey);
+                final PersistentCache zincCache = cacheRepository.cache(zincCacheKey)
+                    .withDisplayName(zincCacheName)
+                    .withLockOptions(mode(FileLockManager.LockMode.OnDemand))
+                    .open();
 
-        File compilerBridgeSourceJar = findFile("compiler-bridge", scalaClasspath);
-        File bridgeJar = getBridgeJar(zincCache, scalaInstance, compilerBridgeSourceJar, sbt.util.Logger.xlog2Log(new SbtLoggerAdapter()));
-        ScalaCompiler scalaCompiler = ZincCompilerUtil.scalaCompiler(scalaInstance, bridgeJar, ClasspathOptionsUtil.auto());
+                File compilerBridgeSourceJar = findFile("compiler-bridge", scalaClasspath);
+                File bridgeJar = getBridgeJar(zincCache, scalaInstance, compilerBridgeSourceJar, sbt.util.Logger.xlog2Log(new SbtLoggerAdapter()));
+                ScalaCompiler scalaCompiler = ZincCompilerUtil.scalaCompiler(scalaInstance, bridgeJar, ClasspathOptionsUtil.auto());
 
-        return new ZincScalaCompiler(scalaInstance, scalaCompiler, new AnalysisStoreProvider());
+                return new ZincScalaCompiler(scalaInstance, scalaCompiler, new AnalysisStoreProvider());
+            }
+        });
     }
 
     private static ClassLoader getClassLoader(final Iterable<File> classpath) {
