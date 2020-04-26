@@ -30,9 +30,11 @@ import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.time.Time;
 import org.gradle.internal.time.Timer;
+import sbt.internal.inc.AnalyzingCompiler;
 import sbt.internal.inc.AnalyzingCompiler$;
 import sbt.internal.inc.RawCompiler;
 import sbt.internal.inc.ScalaInstance;
+import sbt.internal.inc.classpath.ClassLoaderCache;
 import scala.Option;
 import scala.collection.JavaConverters;
 import xsbti.ArtifactInfo;
@@ -61,6 +63,7 @@ public class ZincScalaCompilerFactory {
             .weakValues()
             .maximumSize(CLASSLOADER_CACHE_SIZE)
             .build();
+    private static final ClassLoaderCache ANALYZING_COMPILER_CLASSLOADER_CACHE = new ClassLoaderCache(new URLClassLoader(new URL[0]));
 
     static ZincScalaCompiler getCompiler(CacheRepository cacheRepository, HashedClasspath hashedScalaClasspath) {
         ScalaInstance scalaInstance = getScalaInstance(hashedScalaClasspath);
@@ -77,6 +80,9 @@ public class ZincScalaCompilerFactory {
         File compilerBridgeSourceJar = findFile("compiler-bridge", hashedScalaClasspath.getClasspath());
         File bridgeJar = getBridgeJar(zincCache, scalaInstance, compilerBridgeSourceJar, sbt.util.Logger.xlog2Log(new SbtLoggerAdapter()));
         ScalaCompiler scalaCompiler = ZincCompilerUtil.scalaCompiler(scalaInstance, bridgeJar, ClasspathOptionsUtil.auto());
+        if (scalaCompiler instanceof AnalyzingCompiler) {
+            scalaCompiler = ((AnalyzingCompiler) scalaCompiler).withClassLoaderCache(ANALYZING_COMPILER_CLASSLOADER_CACHE);
+        }
 
         return new ZincScalaCompiler(scalaInstance, scalaCompiler, new AnalysisStoreProvider());
     }
