@@ -16,8 +16,6 @@
 
 package org.gradle.api.internal.tasks.scala;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -30,11 +28,17 @@ import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.time.Time;
 import org.gradle.internal.time.Timer;
+import sbt.internal.inc.AnalyzingCompiler;
 import sbt.internal.inc.AnalyzingCompiler$;
 import sbt.internal.inc.RawCompiler;
 import sbt.internal.inc.ScalaInstance;
+import sbt.internal.inc.ZincUtil;
+import sbt.internal.inc.classpath.ClassLoaderCache;
 import scala.Option;
+import scala.Unit;
+import scala.Unit$;
 import scala.collection.JavaConverters;
+import scala.collection.immutable.Set;
 import xsbti.ArtifactInfo;
 import xsbti.compile.ClasspathOptionsUtil;
 import xsbti.compile.ScalaCompiler;
@@ -50,17 +54,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Callable;
-import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 
 import static org.gradle.cache.internal.filelock.LockOptionsBuilder.mode;
 
 public class ZincScalaCompilerFactory {
     private static final Logger LOGGER = Logging.getLogger(ZincScalaCompilerFactory.class);
     private static final int CLASSLOADER_CACHE_SIZE = 5;
-    private static final Cache<HashCode, ClassLoader> CLASSLOADER_CACHE = CacheBuilder.newBuilder()
-            .weakValues()
-            .maximumSize(CLASSLOADER_CACHE_SIZE)
-            .build();
+    private static final int COMPILER_CLASSLOADER_CACHE_SIZE = 5;
+    private static final SoftClassLoaderCache<HashCode> CLASSLOADER_CACHE = new SoftClassLoaderCache<HashCode>(CLASSLOADER_CACHE_SIZE);
+    private static final TimeCheckingClassLoaderCache COMPILER_CLASSLOADER_CACHE = new TimeCheckingClassLoaderCache(COMPILER_CLASSLOADER_CACHE_SIZE);
 
     static ZincScalaCompiler getCompiler(CacheRepository cacheRepository, HashedClasspath hashedScalaClasspath) {
         ScalaInstance scalaInstance = getScalaInstance(hashedScalaClasspath);
@@ -76,7 +79,13 @@ public class ZincScalaCompilerFactory {
 
         File compilerBridgeSourceJar = findFile("compiler-bridge", hashedScalaClasspath.getClasspath());
         File bridgeJar = getBridgeJar(zincCache, scalaInstance, compilerBridgeSourceJar, sbt.util.Logger.xlog2Log(new SbtLoggerAdapter()));
-        ScalaCompiler scalaCompiler = ZincCompilerUtil.scalaCompiler(scalaInstance, bridgeJar, ClasspathOptionsUtil.auto());
+        ScalaCompiler scalaCompiler = new AnalyzingCompiler(
+            scalaInstance,
+            ZincUtil.constantBridgeProvider(scalaInstance, bridgeJar),
+            ClasspathOptionsUtil.auto(),
+            k -> scala.runtime.BoxedUnit.UNIT,
+            Option.apply(new ClassLoaderCache(COMPILER_CLASSLOADER_CACHE))
+        );
 
         return new ZincScalaCompiler(scalaInstance, scalaCompiler, new AnalysisStoreProvider());
     }
@@ -101,7 +110,7 @@ public class ZincScalaCompilerFactory {
                     return getClassLoader(classpath.getClasspath());
                 }
             });
-        } catch (ExecutionException ee) {
+        } catch (Exception ee) {
             throw new RuntimeException(ee);
         }
     }
