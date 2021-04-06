@@ -46,12 +46,15 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
+import scala.jdk.javaapi.CollectionConverters;
 
 import static org.gradle.cache.internal.filelock.LockOptionsBuilder.mode;
 
@@ -167,9 +170,9 @@ public class ZincScalaCompilerFactory {
                 // generate from sources jar
                 final Timer timer = Time.startTimer();
                 RawCompiler rawCompiler = new RawCompiler(scalaInstance, ClasspathOptionsUtil.manual(), logger);
-                scala.collection.Iterable<File> sourceJars = JavaConverters.collectionAsScalaIterable(Collections.singletonList(compilerBridgeSourceJar));
-                scala.collection.Iterable<File> xsbtiJars = JavaConverters.collectionAsScalaIterable(Arrays.asList(scalaInstance.allJars()));
-                AnalyzingCompiler$.MODULE$.compileSources(sourceJars, bridgeJar, xsbtiJars, "compiler-bridge", rawCompiler, logger);
+                scala.collection.Iterable<Path> sourceJars = CollectionConverters.asScala(Collections.singletonList(compilerBridgeSourceJar.toPath()));
+                scala.collection.Iterable<Path> xsbtiJars = CollectionConverters.asScala(Arrays.stream(scalaInstance.allJars()).map(x -> x.toPath()).collect(Collectors.toList()));
+                AnalyzingCompiler$.MODULE$.compileSources(sourceJars, bridgeJar.toPath(), xsbtiJars, "compiler-bridge", rawCompiler, logger);
 
                 final String interfaceCompletedMessage = String.format("Scala Compiler interface compilation took %s", timer.getElapsed());
                 if (timer.getElapsedMillis() > 30000) {

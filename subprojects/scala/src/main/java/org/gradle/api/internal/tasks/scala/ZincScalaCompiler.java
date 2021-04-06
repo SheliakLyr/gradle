@@ -34,6 +34,7 @@ import sbt.internal.inc.ExternalLookup;
 import sbt.internal.inc.IncrementalCompilerImpl;
 import sbt.internal.inc.Locate;
 import sbt.internal.inc.LoggedReporter;
+import sbt.internal.inc.PlainVirtualFile;
 import sbt.internal.inc.ScalaInstance;
 import sbt.internal.inc.Stamper;
 import scala.None$;
@@ -43,6 +44,8 @@ import scala.collection.JavaConverters;
 import scala.collection.immutable.HashSet;
 import scala.collection.immutable.Set;
 import xsbti.T2;
+import xsbti.VirtualFile;
+import xsbti.VirtualFileRef;
 import xsbti.compile.AnalysisContents;
 import xsbti.compile.AnalysisStore;
 import xsbti.compile.Changes;
@@ -68,11 +71,14 @@ import xsbti.compile.analysis.Stamp;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
     private static final Logger LOGGER = Logging.getLogger(ZincScalaCompiler.class);
@@ -81,7 +87,7 @@ public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
     private final ScalaCompiler scalaCompiler;
     private final AnalysisStoreProvider analysisStoreProvider;
 
-    private final ClearableMapBackedCache<File, DefinesClass> definesClassCache = new ClearableMapBackedCache<>(new ConcurrentHashMap<>());
+    private final ClearableMapBackedCache<VirtualFile, DefinesClass> definesClassCache = new ClearableMapBackedCache<>(new ConcurrentHashMap<>());
 
     @Inject
     public ZincScalaCompiler(ScalaInstance scalaInstance, ScalaCompiler scalaCompiler, AnalysisStoreProvider analysisStoreProvider) {
@@ -98,18 +104,20 @@ public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
 
         IncrementalCompilerImpl incremental = new IncrementalCompilerImpl();
 
-        Compilers compilers = incremental.compilers(scalaInstance, ClasspathOptionsUtil.boot(), Option.apply(Jvm.current().getJavaHome()), scalaCompiler);
+        Compilers compilers = incremental.compilers(scalaInstance, ClasspathOptionsUtil.boot(), Option.apply(Jvm.current().getJavaHome().toPath()), scalaCompiler);
 
         List<String> scalacOptions = new ZincScalaCompilerArgumentsGenerator().generate(spec);
         List<String> javacOptions = new JavaCompilerArgumentsBuilder(spec).includeClasspath(false).noEmptySourcePath().build();
 
-        File[] classpath = Iterables.toArray(spec.getCompileClasspath(), File.class);
+        VirtualFile[] classpath = Iterables.toArray(spec.getCompileClasspath().stream().map(x -> new PlainVirtualFile(x.toPath())).collect(Collectors.toList()), VirtualFile.class);
 
         CompileOptions compileOptions = CompileOptions.create()
-                .withSources(Iterables.toArray(spec.getSourceFiles(), File.class))
+                .withSources(
+                    Iterables.toArray(Arrays.stream(Iterables.toArray(spec.getSourceFiles(), File.class)).map(x -> new PlainVirtualFile(x.toPath()))
+                        .collect(Collectors.toList()), VirtualFile.class))
                 .withClasspath(classpath)
                 .withScalacOptions(scalacOptions.toArray(new String[0]))
-                .withClassesDirectory(spec.getDestinationDir())
+                .withClassesDirectory(spec.getDestinationDir().toPath())
                 .withJavacOptions(javacOptions.toArray(new String[0]));
 
         File analysisFile = spec.getAnalysisFile();
@@ -129,17 +137,18 @@ public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
             .orElse(PreviousResult.of(Optional.empty(), Optional.empty()));
 
         IncOptions incOptions = IncOptions.of()
-                .withExternalHooks(new LookupOnlyExternalHooks(new ExternalBinariesLookup()))
+                //.withExternalHooks(new LookupOnlyExternalHooks(new ExternalBinariesLookup()))
                 .withRecompileOnMacroDef(Optional.of(false))
                 .withClassfileManagerType(classFileManagerType)
                 .withTransitiveStep(5);
 
         Setup setup = incremental.setup(new EntryLookup(spec),
                 false,
-                analysisFile,
+                analysisFile.toPath(),
                 CompilerCache.fresh(),
                 incOptions,
                 new LoggedReporter(100, new SbtLoggerAdapter(), p -> p),
+                Option.empty(),
                 Option.empty(),
                 getExtra()
         );
@@ -183,12 +192,12 @@ public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
         }
 
         @Override
-        public Optional<CompileAnalysis> analysis(File classpathEntry) {
+        public Optional<CompileAnalysis> analysis(VirtualFile classpathEntry) {
             return Optional.ofNullable(analysisMap.get(classpathEntry)).flatMap(f -> analysisStoreProvider.get(f).get().map(AnalysisContents::getAnalysis));
         }
 
         @Override
-        public DefinesClass definesClass(File classpathEntry) {
+        public DefinesClass definesClass(VirtualFile classpathEntry) {
             return analysis(classpathEntry)
                 .map(a -> a instanceof Analysis ? (Analysis) a : null)
                 .<DefinesClass>map(AnalysisBakedDefineClass::new)
@@ -196,54 +205,54 @@ public class ZincScalaCompiler implements Compiler<ScalaJavaJointCompileSpec> {
         }
     }
 
-    private static class ExternalBinariesLookup implements ExternalLookup {
-
-        @SuppressWarnings("unchecked")
-        public <T> Option<T> none() {
-            return (Option<T>) None$.MODULE$;
-        }
-
-        @Override
-        public Option<Changes<File>> changedSources(CompileAnalysis previousAnalysis) {
-            return none();
-        }
-
-
-        @Override
-        public Option<Set<File>> changedBinaries(CompileAnalysis previousAnalysis) {
-            List<File> result = new java.util.ArrayList<>();
-
-            for (Map.Entry<File, Stamp> e : previousAnalysis.readStamps().getAllBinaryStamps().entrySet()) {
-                if (!e.getKey().exists() || !e.getValue().equals(Stamper.forLastModified().apply(e.getKey()))) {
-                    result.add(e.getKey());
-                }
-            }
-            //return new Some<Set<File>>(new HashSet<>());
-            //return Option.empty();
-            if (result.isEmpty()) {
-                return new Some<>(new HashSet<>());
-            } else {
-                return new Some<>(JavaConverters.asScalaBuffer(result).toSet());
-            }
-        }
-
-
-        @Override
-        public Option<Set<File>> removedProducts(CompileAnalysis previousAnalysis) {
-            return new Some<>(new HashSet<>()); //return none();
-        }
-
-        @Override
-        public boolean shouldDoIncrementalCompilation(Set<String> changedClasses, CompileAnalysis analysis) {
-            return true;
-        }
-
-
-        @Override
-        public Optional<FileHash[]> hashClasspath(File[] classpath) {
-            return Optional.empty();
-        }
-    }
+//    private static class ExternalBinariesLookup implements ExternalLookup {
+//
+//        @SuppressWarnings("unchecked")
+//        public <T> Option<T> none() {
+//            return (Option<T>) None$.MODULE$;
+//        }
+//
+//        @Override
+//        public Option<Changes<VirtualFileRef>> changedSources(CompileAnalysis previousAnalysis) {
+//            return none();
+//        }
+//
+//
+//        @Override
+//        public Option<Set<VirtualFileRef>> changedBinaries(CompileAnalysis previousAnalysis) {
+//            List<File> result = new java.util.ArrayList<>();
+//
+//            for (Map.Entry<File, Stamp> e : previousAnalysis.readStamps().getAllBinaryStamps().entrySet()) {
+//                if (!e.getKey().exists() || !e.getValue().equals(Stamper.forLastModified().apply(e.getKey()))) {
+//                    result.add(e.getKey());
+//                }
+//            }
+//            //return new Some<Set<File>>(new HashSet<>());
+//            //return Option.empty();
+//            if (result.isEmpty()) {
+//                return new Some<>(new HashSet<>());
+//            } else {
+//                return new Some<>(JavaConverters.asScalaBuffer(result).toSet());
+//            }
+//        }
+//
+//
+//        @Override
+//        public Option<Set<VirtualFileRef>> removedProducts(CompileAnalysis previousAnalysis) {
+//            return new Some<>(new HashSet<>()); //return none();
+//        }
+//
+//        @Override
+//        public boolean shouldDoIncrementalCompilation(Set<String> changedClasses, CompileAnalysis analysis) {
+//            return true;
+//        }
+//
+//
+//        @Override
+//        public Optional<FileHash[]> hashClasspath(File[] classpath) {
+//            return Optional.empty();
+//        }
+//    }
 
     private static class LookupOnlyExternalHooks implements ExternalHooks {
         private final Optional<Lookup> lookup;
